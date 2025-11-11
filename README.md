@@ -5,7 +5,7 @@ API Node.js para receber dados de GPS do ESP32 (NEO-6M) e verificar se o veícul
 ## 📋 Funcionalidades
 
 - ✅ Recebe dados de localização e velocidade do ESP32
-- ✅ Consulta limite de velocidade da via via Overpass API
+- ✅ Consulta limite de velocidade da via no Overpass API
 - ✅ Compara velocidade do veículo com o limite da via
 - ✅ Retorna alerta quando veículo excede o limite
 - ✅ Validação completa dos dados recebidos
@@ -213,7 +213,7 @@ IoT Project/
 ### API não encontra limite de velocidade
 - Verifique se as coordenadas estão corretas
 - Nem todas as vias no OSM têm dados de `maxspeed`
-- A API retorna 60 km/h como padrão nestes casos
+- A API retorna 50 km/h como padrão nestes casos
 
 ### Timeout na Overpass API
 - A API pública pode estar sobrecarregada
