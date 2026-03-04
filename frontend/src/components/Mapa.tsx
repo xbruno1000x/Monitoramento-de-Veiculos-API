@@ -2,7 +2,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import VeiculoMarker from './VeiculoMarker'
 import type { Veiculo } from '../types'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface Props {
   veiculos: Veiculo[]
@@ -20,14 +20,27 @@ interface FocoMapaProps {
 
 function FocoMapa({ veiculoSelecionado }: FocoMapaProps) {
   const map = useMap()
+  const ultimoVeiculoRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!veiculoSelecionado) return
+    if (!veiculoSelecionado) {
+      ultimoVeiculoRef.current = null
+      return
+    }
 
-    map.flyTo([veiculoSelecionado.lat, veiculoSelecionado.lon], 16, {
-      duration: 0.8,
-    })
-  }, [map, veiculoSelecionado])
+    const destino: [number, number] = [veiculoSelecionado.lat, veiculoSelecionado.lon]
+    const mudouSelecao = ultimoVeiculoRef.current !== veiculoSelecionado.veiculo_id
+
+    if (mudouSelecao) {
+      const zoomAtual = map.getZoom()
+      map.flyTo(destino, Math.max(zoomAtual, 16), { duration: 0.8 })
+    } else {
+      // Mantem o zoom escolhido pelo usuario quando estiver em lock.
+      map.panTo(destino, { animate: true, duration: 0.7 })
+    }
+
+    ultimoVeiculoRef.current = veiculoSelecionado.veiculo_id
+  }, [map, veiculoSelecionado?.veiculo_id, veiculoSelecionado?.lat, veiculoSelecionado?.lon])
 
   return null
 }
@@ -48,12 +61,12 @@ export default function Mapa({ veiculos, veiculoSelecionadoId, veiculoSelecionad
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
       />
       <TileLayer
         attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
         url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
-        opacity={0.28}
+        opacity={0.92}
       />
       <FocoMapa veiculoSelecionado={veiculoSelecionado} />
       {veiculos.map((v) => (

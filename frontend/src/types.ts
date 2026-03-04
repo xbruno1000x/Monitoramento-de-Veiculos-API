@@ -2,6 +2,7 @@ export interface Veiculo {
   veiculo_id: string
   lat: number
   lon: number
+  heading: number | null
   velocidade: number
   timestamp: string
   limite_via: number

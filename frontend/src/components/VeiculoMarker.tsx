@@ -4,35 +4,36 @@ import type { Veiculo } from '../types'
 import { useEffect, useRef } from 'react'
 import type { Marker as LeafletMarker } from 'leaflet'
 
-// Ícone personalizado - verde = OK, vermelho = alerta
-function criarIcone(alerta: boolean, selecionado: boolean) {
-  const corBase = alerta ? '#ff3b3b' : '#00e676'
-  const corNeon = selecionado ? '#00f0ff' : '#a45dff'
-  const tamanho = selecionado ? 46 : 42
+function grauParaCardeal(heading: number | null) {
+  if (heading === null || Number.isNaN(heading)) return 'N/A'
+  const direcoes = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO']
+  const indice = Math.round(heading / 45) % 8
+  return direcoes[indice]
+}
+
+// Icone inspirado em apps de mobilidade: seta/carro com direcao de deslocamento
+function criarIcone(alerta: boolean, selecionado: boolean, heading: number | null) {
+  const tamanho = selecionado ? 48 : 42
   const metade = Math.round(tamanho / 2)
-  const sombraExterna = selecionado ? '0 0 10px #00f0ff, 0 0 20px #00f0ff' : '0 0 8px #7a3fff'
-  const svg = `
+  const corCorpo = alerta ? '#ef5350' : '#263238'
+  const corBorda = selecionado ? '#00a8ff' : '#ffffff'
+  const angulo = heading ?? 0
+  const sombraExterna = selecionado
+    ? '0 0 12px rgba(0, 168, 255, 0.35), 0 4px 12px rgba(4, 27, 52, 0.28)'
+    : '0 3px 10px rgba(4, 27, 52, 0.24)'
+
+  const html = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${tamanho}" height="${tamanho}" viewBox="0 0 48 48">
-      <defs>
-        <radialGradient id="ring" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="${corNeon}" stop-opacity="0.35"/>
-          <stop offset="100%" stop-color="${corNeon}" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-      <circle cx="24" cy="24" r="22" fill="url(#ring)"/>
-      <circle cx="24" cy="24" r="19" fill="none" stroke="${corNeon}" stroke-opacity="0.65" stroke-width="1.6"/>
-      <g style="filter: drop-shadow(${sombraExterna});">
-        <rect x="15" y="11" rx="6" ry="6" width="18" height="26" fill="#101323" stroke="${corNeon}" stroke-width="1.5"/>
-        <rect x="17.5" y="14" rx="3" ry="3" width="13" height="8" fill="#0b1a2b" stroke="#49d9ff" stroke-width="1"/>
-        <rect x="18.5" y="24" rx="2" ry="2" width="11" height="9" fill="${corBase}" fill-opacity="0.35" stroke="${corBase}" stroke-width="1.2"/>
-        <circle cx="18.5" cy="36" r="3" fill="#0f1024" stroke="${corNeon}" stroke-width="1"/>
-        <circle cx="29.5" cy="36" r="3" fill="#0f1024" stroke="${corNeon}" stroke-width="1"/>
-        <rect x="15.8" y="8.7" rx="2" ry="2" width="16.5" height="2.4" fill="#7cf2ff"/>
+      <circle cx="24" cy="24" r="16" fill="#ffffff" fill-opacity="0.92" />
+      <g class="marker-body" transform="rotate(${angulo} 24 24)" style="filter: drop-shadow(${sombraExterna});">
+        <polygon points="24,8 33,22 28,21 28,36 20,36 20,21 15,22" fill="${corCorpo}" stroke="${corBorda}" stroke-width="1.8" stroke-linejoin="round"/>
+        <polygon points="24,12 28,18 20,18" fill="#ffffff" fill-opacity="0.9"/>
       </g>
+      ${selecionado ? '<circle cx="24" cy="24" r="21" fill="none" stroke="#00a8ff" stroke-opacity="0.3" stroke-width="1.4"/>' : ''}
     </svg>`
 
   return L.divIcon({
-    html: svg,
+    html,
     className: selecionado ? 'veiculo-marker-selecionado' : 'veiculo-marker',
     iconSize: [tamanho, tamanho],
     iconAnchor: [metade, metade],
@@ -46,8 +47,10 @@ interface Props {
 }
 
 export default function VeiculoMarker({ veiculo, selecionado }: Props) {
-  const { veiculo_id, lat, lon, velocidade, limite_via, via, alerta, mensagem, updatedAt } = veiculo
+  const { veiculo_id, lat, lon, velocidade, limite_via, via, alerta, mensagem, updatedAt, heading } = veiculo
   const markerRef = useRef<LeafletMarker | null>(null)
+  const cardeal = grauParaCardeal(heading)
+  const headingFormatado = heading === null ? 'N/A' : `${Math.round(heading)}° (${cardeal})`
 
   useEffect(() => {
     if (selecionado) {
@@ -56,7 +59,7 @@ export default function VeiculoMarker({ veiculo, selecionado }: Props) {
   }, [selecionado])
 
   return (
-    <Marker ref={markerRef} position={[lat, lon]} icon={criarIcone(alerta, selecionado)}>
+    <Marker ref={markerRef} position={[lat, lon]} icon={criarIcone(alerta, selecionado, heading)}>
       <Popup>
         <div style={{ minWidth: 200, fontFamily: 'system-ui' }}>
           <h3 style={{ margin: '0 0 8px', color: alerta ? '#e74c3c' : '#27ae60' }}>
@@ -71,6 +74,7 @@ export default function VeiculoMarker({ veiculo, selecionado }: Props) {
                 <td><b>Status</b></td>
                 <td style={{ color: alerta ? '#e74c3c' : '#27ae60' }}>{mensagem}</td>
               </tr>
+              <tr><td><b>Sentido</b></td><td>{headingFormatado}</td></tr>
               <tr>
                 <td><b>Atualizado</b></td>
                 <td>{new Date(updatedAt).toLocaleTimeString('pt-BR')}</td>
