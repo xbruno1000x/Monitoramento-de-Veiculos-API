@@ -4,6 +4,9 @@ import type { Veiculo } from '../types'
 import { useEffect, useRef } from 'react'
 import type { Marker as LeafletMarker } from 'leaflet'
 
+const BASE_ICON_HEADING_DEG = Number(import.meta.env.VITE_VEHICLE_ICON_OFFSET_DEG ?? 0)
+const MOVIMENTO_DURACAO_MS = 1300
+
 function grauParaCardeal(heading: number | null) {
   if (heading === null || Number.isNaN(heading)) return 'N/A'
   const direcoes = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO']
@@ -11,26 +14,46 @@ function grauParaCardeal(heading: number | null) {
   return direcoes[indice]
 }
 
-// Icone inspirado em apps de mobilidade: seta/carro com direcao de deslocamento
-function criarIcone(alerta: boolean, selecionado: boolean, heading: number | null) {
+function normalizarAngulo(angulo: number) {
+  return ((angulo % 360) + 360) % 360
+}
+
+function obterMenorDeltaAngulo(origem: number, destino: number) {
+  return ((destino - origem + 540) % 360) - 180
+}
+
+function headingParaAnguloVisual(heading: number | null) {
+  if (heading === null || Number.isNaN(heading)) return null
+  return normalizarAngulo(heading - BASE_ICON_HEADING_DEG)
+}
+
+function aplicarRotacao(marker: LeafletMarker | null, angulo: number) {
+  const markerEl = marker?.getElement()
+  if (!markerEl) return
+
+  const corpo = markerEl.querySelector<HTMLElement>('.veiculo-icon-body')
+  if (!corpo) return
+
+  corpo.style.transform = `translate(-50%, -50%) rotate(${angulo}deg)`
+}
+
+function criarIcone(alerta: boolean, selecionado: boolean) {
   const tamanho = selecionado ? 48 : 42
   const metade = Math.round(tamanho / 2)
-  const corCorpo = alerta ? '#ef5350' : '#263238'
-  const corBorda = selecionado ? '#00a8ff' : '#ffffff'
-  const angulo = heading ?? 0
-  const sombraExterna = selecionado
-    ? '0 0 12px rgba(0, 168, 255, 0.35), 0 4px 12px rgba(4, 27, 52, 0.28)'
-    : '0 3px 10px rgba(4, 27, 52, 0.24)'
+  const classes = [
+    'veiculo-icon-shell',
+    selecionado ? 'selecionado' : '',
+    alerta ? 'alerta' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const html = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${tamanho}" height="${tamanho}" viewBox="0 0 48 48">
-      <circle cx="24" cy="24" r="16" fill="#ffffff" fill-opacity="0.92" />
-      <g class="marker-body" transform="rotate(${angulo} 24 24)" style="filter: drop-shadow(${sombraExterna});">
-        <polygon points="24,8 33,22 28,21 28,36 20,36 20,21 15,22" fill="${corCorpo}" stroke="${corBorda}" stroke-width="1.8" stroke-linejoin="round"/>
-        <polygon points="24,12 28,18 20,18" fill="#ffffff" fill-opacity="0.9"/>
-      </g>
-      ${selecionado ? '<circle cx="24" cy="24" r="21" fill="none" stroke="#00a8ff" stroke-opacity="0.3" stroke-width="1.4"/>' : ''}
-    </svg>`
+    <div class="${classes}" style="width:${tamanho}px;height:${tamanho}px;">
+      <div class="veiculo-icon-body" style="transform: translate(-50%, -50%) rotate(0deg);">
+        <img src="/img/car-white.svg" alt="" />
+      </div>
+    </div>`
 
   return L.divIcon({
     html,
@@ -49,6 +72,9 @@ interface Props {
 export default function VeiculoMarker({ veiculo, selecionado }: Props) {
   const { veiculo_id, lat, lon, velocidade, limite_via, via, alerta, mensagem, updatedAt, heading } = veiculo
   const markerRef = useRef<LeafletMarker | null>(null)
+  const frameRef = useRef<number | null>(null)
+  const posicaoAtualRef = useRef<{ lat: number; lon: number }>({ lat, lon })
+  const anguloAtualRef = useRef<number>(headingParaAnguloVisual(heading) ?? 0)
   const cardeal = grauParaCardeal(heading)
   const headingFormatado = heading === null ? 'N/A' : `${Math.round(heading)}° (${cardeal})`
 
@@ -58,8 +84,62 @@ export default function VeiculoMarker({ veiculo, selecionado }: Props) {
     }
   }, [selecionado])
 
+  useEffect(() => {
+    const marker = markerRef.current
+    if (!marker) return
+
+    const destinoPos = { lat, lon }
+    const destinoAngulo = headingParaAnguloVisual(heading)
+
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+    }
+
+    const inicioPos = { ...posicaoAtualRef.current }
+    const inicioAngulo = anguloAtualRef.current
+    const fimAngulo = destinoAngulo ?? inicioAngulo
+    const deltaAngulo = obterMenorDeltaAngulo(inicioAngulo, fimAngulo)
+
+    const iniciouEm = performance.now()
+
+    const animar = (agora: number) => {
+      const progresso = Math.min((agora - iniciouEm) / MOVIMENTO_DURACAO_MS, 1)
+
+      const latAnim = inicioPos.lat + (destinoPos.lat - inicioPos.lat) * progresso
+      const lonAnim = inicioPos.lon + (destinoPos.lon - inicioPos.lon) * progresso
+      const anguloAnim = normalizarAngulo(inicioAngulo + deltaAngulo * progresso)
+
+      marker.setLatLng([latAnim, lonAnim])
+      aplicarRotacao(marker, anguloAnim)
+
+      posicaoAtualRef.current = { lat: latAnim, lon: lonAnim }
+      anguloAtualRef.current = anguloAnim
+
+      if (progresso < 1) {
+        frameRef.current = requestAnimationFrame(animar)
+      } else {
+        frameRef.current = null
+      }
+    }
+
+    frameRef.current = requestAnimationFrame(animar)
+
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
+    }
+  }, [lat, lon, heading])
+
+  useEffect(() => {
+    // Reaplica a rotacao ao trocar de estilo/tamanho do icone.
+    aplicarRotacao(markerRef.current, anguloAtualRef.current)
+  }, [selecionado, alerta])
+
   return (
-    <Marker ref={markerRef} position={[lat, lon]} icon={criarIcone(alerta, selecionado, heading)}>
+    <Marker ref={markerRef} position={[lat, lon]} icon={criarIcone(alerta, selecionado)}>
       <Popup>
         <div style={{ minWidth: 200, fontFamily: 'system-ui' }}>
           <h3 style={{ margin: '0 0 8px', color: alerta ? '#e74c3c' : '#27ae60' }}>
