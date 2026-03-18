@@ -1,12 +1,23 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import type { Veiculo } from '../types'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import type { Veiculo, VeiculosResponse } from '../types'
+import { apiRequest, authHeaders } from '../services/apiClient'
 
 interface UltimaPosicao {
   lat: number
   lon: number
   heading: number | null
+}
+
+interface ApiError extends Error {
+  status?: number
+}
+
+function toErrorMessage(err: unknown) {
+  if (err instanceof Error && err.message) {
+    return err.message
+  }
+
+  return 'Falha ao carregar dados de veiculos.'
 }
 
 function calcularHeading(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -24,17 +35,25 @@ function calcularHeading(lat1: number, lon1: number, lat2: number, lon2: number)
   return (paraGraus(theta) + 360) % 360
 }
 
-export function useVeiculos(intervaloMs = 3000) {
+export function useVeiculos(token: string | null, intervaloMs = 3000, onNaoAutorizado?: () => void) {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(token))
   const [erro, setErro] = useState<string | null>(null)
   const ultimasPosicoesRef = useRef<Record<string, UltimaPosicao>>({})
 
   const fetchVeiculos = useCallback(async () => {
+    if (!token) {
+      setVeiculos([])
+      setLoading(false)
+      setErro(null)
+      ultimasPosicoesRef.current = {}
+      return
+    }
+
     try {
-      const res = await fetch(`${API_URL}/api/veiculos`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await apiRequest<VeiculosResponse>('/api/veiculos', {
+        headers: authHeaders(token),
+      })
 
       const idsAtuais = new Set<string>()
       const veiculosComDirecao: Veiculo[] = data.veiculos.map((veiculo: Omit<Veiculo, 'heading'>) => {
@@ -71,17 +90,24 @@ export function useVeiculos(intervaloMs = 3000) {
       setVeiculos(veiculosComDirecao)
       setErro(null)
     } catch (err) {
-      setErro((err as Error).message)
+      if ((err as ApiError)?.status === 401) {
+        onNaoAutorizado?.()
+      }
+
+      setErro(toErrorMessage(err))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token, onNaoAutorizado])
 
   useEffect(() => {
     fetchVeiculos()
+
+    if (!token) return
+
     const id = setInterval(fetchVeiculos, intervaloMs)
     return () => clearInterval(id)
-  }, [fetchVeiculos, intervaloMs])
+  }, [fetchVeiculos, intervaloMs, token])
 
   return { veiculos, loading, erro }
 }

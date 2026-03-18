@@ -6,12 +6,22 @@ const { iniciarMQTT } = require('./services/mqttService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Middlewares
-app.use(cors()); // Permite requisições de qualquer origem
-app.use(express.json()); // Parse de JSON no body
+app.disable('x-powered-by');
+app.use(cors({
+  origin: ALLOWED_ORIGIN,
+}));
+app.use(express.json({ limit: '100kb' }));
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${req.ip}`);
   next();
 });
 
@@ -25,9 +35,12 @@ app.get('/', (req, res) => {
     versao: '2.0.0',
     protocolos: ['HTTP/REST', 'MQTT'],
     endpoints: {
+      'POST /api/auth/login': 'Login e emissao de token',
+      'GET  /api/auth/me': 'Dados do usuario autenticado',
+      'POST /api/veiculos/cadastro': 'Cadastra um novo veiculo na frota do usuario',
       'POST /api/veiculo': 'Recebe dados do ESP32 via HTTP (compatibilidade)',
-      'GET  /api/veiculos': 'Lista todos os veículos rastreados',
-      'GET  /api/veiculo/:id': 'Dados de um veículo específico',
+      'GET  /api/veiculos': 'Lista veiculos da frota do usuario autenticado',
+      'GET  /api/veiculo/:id': 'Dados de um veiculo da frota do usuario autenticado',
       'GET  /api/health': 'Verifica status da API'
     },
     mqtt: {
@@ -43,6 +56,20 @@ app.use((req, res) => {
   res.status(404).json({
     erro: 'Rota não encontrada',
     mensagem: `A rota ${req.method} ${req.url} não existe`
+  });
+});
+
+app.use((error, req, res, next) => {
+  console.error('Erro nao tratado:', error);
+
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  return res.status(error.status || 500).json({
+    erro: 'Erro interno do servidor',
+    mensagem: process.env.NODE_ENV === 'production' ? 'Falha inesperada' : error.message,
+    timestamp: new Date().toISOString(),
   });
 });
 

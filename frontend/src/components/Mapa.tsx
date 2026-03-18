@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import VeiculoMarker from './VeiculoMarker'
 import type { Veiculo } from '../types'
@@ -40,7 +40,7 @@ function FocoMapa({ veiculoSelecionado }: FocoMapaProps) {
     }
 
     ultimoVeiculoRef.current = veiculoSelecionado.veiculo_id
-  }, [map, veiculoSelecionado?.veiculo_id, veiculoSelecionado?.lat, veiculoSelecionado?.lon])
+  }, [map, veiculoSelecionado])
 
   return null
 }
@@ -69,6 +69,24 @@ export default function Mapa({ veiculos, veiculoSelecionadoId, veiculoSelecionad
         opacity={0.92}
       />
       <FocoMapa veiculoSelecionado={veiculoSelecionado} />
+      {veiculos.map((v) => {
+        const posicoes = v.trajeto?.map((ponto) => [ponto.lat, ponto.lon] as [number, number]) ?? []
+        if (posicoes.length < 2) return null
+
+        const selecionado = veiculoSelecionadoId === v.veiculo_id
+
+        return (
+          <Polyline
+            key={`rota-${v.veiculo_id}`}
+            positions={posicoes}
+            pathOptions={{
+              color: '#1a73e8',
+              weight: selecionado ? 5 : 3,
+              opacity: selecionado ? 0.95 : 0.7,
+            }}
+          />
+        )
+      })}
       {veiculos.map((v) => (
         <VeiculoMarker
           key={v.veiculo_id}

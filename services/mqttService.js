@@ -11,8 +11,10 @@ const { createServer } = require('net');
 const { consultarLimiteVelocidade } = require('./nominatimService');
 const { processarDadosVeiculo, validarDadosVeiculo } = require('./veiculoService');
 const veiculoStore = require('./veiculoStore');
+const authService = require('./authService');
 
-const MQTT_PORT = process.env.MQTT_PORT || 1883;
+const mqttPortRaw = Number(process.env.MQTT_PORT);
+const MQTT_PORT = Number.isInteger(mqttPortRaw) && mqttPortRaw > 0 ? mqttPortRaw : 1883;
 
 /**
  * Inicia o broker MQTT e registra os handlers.
@@ -59,14 +61,24 @@ function iniciarMQTT() {
  */
 async function handleDadosVeiculo(veiculoIdTopic, payload) {
     try {
-        const dadosVeiculo = JSON.parse(payload.toString());
+        let dadosVeiculo;
+
+        try {
+            dadosVeiculo = JSON.parse(payload.toString('utf8'));
+        } catch {
+            publicarResposta(veiculoIdTopic, {
+                erro: 'Payload invalido. Esperado JSON valido.',
+                ultima_atualizacao: new Date().toISOString(),
+            });
+            return;
+        }
 
         // Se o payload não incluir veiculo_id, usa o do tópico
         if (!dadosVeiculo.veiculo_id) {
             dadosVeiculo.veiculo_id = veiculoIdTopic;
         }
 
-        console.log(`[MQTT] Dados recebidos de ${dadosVeiculo.veiculo_id}:`, dadosVeiculo);
+        console.log(`[MQTT] Dados recebidos de ${dadosVeiculo.veiculo_id}`);
 
         // Validação
         const validacao = validarDadosVeiculo(dadosVeiculo);
@@ -94,6 +106,7 @@ async function handleDadosVeiculo(veiculoIdTopic, payload) {
             lon,
             velocidade,
             timestamp: dadosVeiculo.timestamp,
+            ownerId: authService.getOwnerByVeiculoId(veiculo_id),
             ...resposta
         });
 
@@ -102,6 +115,10 @@ async function handleDadosVeiculo(veiculoIdTopic, payload) {
 
     } catch (err) {
         console.error('[MQTT] Erro ao processar mensagem:', err.message);
+        publicarResposta(veiculoIdTopic, {
+            erro: 'Falha ao processar dados do veiculo',
+            ultima_atualizacao: new Date().toISOString(),
+        });
     }
 }
 
@@ -117,7 +134,12 @@ function publicarResposta(veiculoId, dados) {
         payload: Buffer.from(payload),
         qos: 1,
         retain: false
-    }, () => {
+    }, (err) => {
+        if (err) {
+            console.error(`[MQTT] Falha ao publicar resposta em ${topic}:`, err.message);
+            return;
+        }
+
         console.log(`[MQTT] Resposta publicada em ${topic}`);
     });
 }

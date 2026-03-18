@@ -41,8 +41,16 @@ function validarDadosVeiculo(dados) {
         return { valido: false, erro: 'Campo veiculo_id é obrigatório' };
     }
 
+    if (typeof veiculo_id !== 'string' || veiculo_id.trim().length < 3 || veiculo_id.trim().length > 32) {
+        return { valido: false, erro: 'Campo veiculo_id deve ter entre 3 e 32 caracteres' };
+    }
+
     if (!timestamp) {
         return { valido: false, erro: 'Campo timestamp é obrigatório' };
+    }
+
+    if (Number.isNaN(Date.parse(String(timestamp)))) {
+        return { valido: false, erro: 'Campo timestamp invalido (use formato ISO-8601)' };
     }
 
     if (lat === undefined || lat === null) {
@@ -55,6 +63,10 @@ function validarDadosVeiculo(dados) {
 
     if (velocidade === undefined || velocidade === null) {
         return { valido: false, erro: 'Campo velocidade é obrigatório' };
+    }
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(velocidade)) {
+        return { valido: false, erro: 'Campos lat, lon e velocidade devem ser numericos' };
     }
 
     if (lat < -90 || lat > 90) {
