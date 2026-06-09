@@ -38,6 +38,7 @@ app.get('/', (req, res) => {
       'POST /api/auth/login': 'Login e emissao de token',
       'GET  /api/auth/me': 'Dados do usuario autenticado',
       'POST /api/veiculos/cadastro': 'Cadastra um novo veiculo na frota do usuario',
+      'DELETE /api/veiculos/:id': 'Remove um veiculo da frota do usuario',
       'POST /api/veiculo': 'Recebe dados do ESP32 via HTTP (compatibilidade)',
       'GET  /api/veiculos': 'Lista veiculos da frota do usuario autenticado',
       'GET  /api/veiculo/:id': 'Dados de um veiculo da frota do usuario autenticado',

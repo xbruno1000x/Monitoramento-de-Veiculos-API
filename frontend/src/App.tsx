@@ -9,7 +9,7 @@ import './App.css'
 
 export default function App() {
   const { token, usuario, loading: authLoading, erro: authErro, autenticado, login, logout } = useAuth()
-  const { veiculos, loading, erro } = useVeiculos(token, 3000, logout)
+  const { veiculos, loading, erro, recarregar } = useVeiculos(token, 3000, logout)
   const [veiculoSelecionadoId, setVeiculoSelecionadoId] = useState<string | null>(null)
 
   const veiculoSelecionadoIdValido = useMemo(() => {
@@ -43,8 +43,23 @@ export default function App() {
       body: JSON.stringify({ placa }),
     })
 
+    await recarregar()
     return data?.mensagem as string
-  }, [token])
+  }, [token, recarregar])
+
+  const handleRemoverVeiculo = useCallback(async (veiculoId: string) => {
+    if (!token) {
+      throw new Error('Sessao invalida. Faca login novamente.')
+    }
+
+    await apiRequest<{ mensagem?: string }>(`/api/veiculos/${encodeURIComponent(veiculoId)}`, {
+      method: 'DELETE',
+      headers: authHeaders(token),
+    })
+
+    setVeiculoSelecionadoId((atual) => (atual === veiculoId ? null : atual))
+    await recarregar()
+  }, [token, recarregar])
 
   if (authLoading) {
     return (
@@ -68,6 +83,7 @@ export default function App() {
         onLimparSelecao={() => setVeiculoSelecionadoId(null)}
         onLogout={logout}
         onCadastrarVeiculo={handleCadastrarVeiculo}
+        onRemoverVeiculo={handleRemoverVeiculo}
       />
 
       <div className="mapa-container">

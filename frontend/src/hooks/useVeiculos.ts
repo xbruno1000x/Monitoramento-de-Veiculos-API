@@ -109,5 +109,5 @@ export function useVeiculos(token: string | null, intervaloMs = 3000, onNaoAutor
     return () => clearInterval(id)
   }, [fetchVeiculos, intervaloMs, token])
 
-  return { veiculos, loading, erro }
+  return { veiculos, loading, erro, recarregar: fetchVeiculos }
 }

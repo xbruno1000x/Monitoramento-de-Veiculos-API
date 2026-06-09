@@ -311,12 +311,40 @@ html, body, #root {
 
 .veiculo-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
   padding: 10px 12px;
   margin-bottom: 8px;
   border-radius: 8px;
   border-left: 4px solid;
+}
+
+.veiculo-item-selecionar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.veiculo-item-remover {
+  align-self: flex-start;
+  margin-left: 10px;
+  border: 1px solid #e7b8b4;
+  background: #fff5f4;
+  color: #b63a34;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.veiculo-item-remover:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .veiculo-item.ok {

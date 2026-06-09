@@ -1,6 +1,7 @@
 import type { Veiculo } from '../types'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { formatarVelocidade } from '../utils/formatters'
 
 interface Props {
   usuarioNome: string
@@ -10,6 +11,7 @@ interface Props {
   onLimparSelecao: () => void
   onLogout: () => void
   onCadastrarVeiculo: (placa: string) => Promise<string>
+  onRemoverVeiculo: (veiculoId: string) => Promise<void>
 }
 
 function toErrorMessage(err: unknown, fallback: string) {
@@ -20,12 +22,13 @@ function toErrorMessage(err: unknown, fallback: string) {
   return fallback
 }
 
-export default function Painel({ usuarioNome, veiculos, veiculoSelecionadoId, onSelecionarVeiculo, onLimparSelecao, onLogout, onCadastrarVeiculo }: Props) {
+export default function Painel({ usuarioNome, veiculos, veiculoSelecionadoId, onSelecionarVeiculo, onLimparSelecao, onLogout, onCadastrarVeiculo, onRemoverVeiculo }: Props) {
   const emAlerta = veiculos.filter((v) => v.alerta).length
   const [placa, setPlaca] = useState('')
   const [mensagemCadastro, setMensagemCadastro] = useState<string | null>(null)
   const [cadastroErro, setCadastroErro] = useState<string | null>(null)
   const [cadastroLoading, setCadastroLoading] = useState(false)
+  const [remocaoEmAndamento, setRemocaoEmAndamento] = useState<string | null>(null)
 
   async function handleCadastro(event: FormEvent) {
     event.preventDefault()
@@ -49,6 +52,23 @@ export default function Painel({ usuarioNome, veiculos, veiculoSelecionadoId, on
       setCadastroErro(toErrorMessage(err, 'Nao foi possivel cadastrar o veiculo.'))
     } finally {
       setCadastroLoading(false)
+    }
+  }
+
+  async function handleRemocao(veiculoId: string) {
+    const confirmado = window.confirm(`Remover o veiculo ${veiculoId} da sua frota?`)
+    if (!confirmado) {
+      return
+    }
+
+    setRemocaoEmAndamento(veiculoId)
+
+    try {
+      await onRemoverVeiculo(veiculoId)
+    } catch (err) {
+      setCadastroErro(toErrorMessage(err, 'Nao foi possivel remover o veiculo.'))
+    } finally {
+      setRemocaoEmAndamento((atual) => (atual === veiculoId ? null : atual))
     }
   }
 
@@ -111,16 +131,29 @@ export default function Painel({ usuarioNome, veiculos, veiculoSelecionadoId, on
           <p className="vazio">Nenhum veículo conectado.</p>
         )}
         {veiculos.map((v) => (
-          <button
+          <div
             key={v.veiculo_id}
-            type="button"
             className={`veiculo-item ${v.alerta ? 'alerta' : 'ok'} ${veiculoSelecionadoId === v.veiculo_id ? 'selecionado' : ''}`}
-            onClick={() => onSelecionarVeiculo(v.veiculo_id)}
           >
-            <strong>{v.veiculo_id}</strong>
-            <span>{v.velocidade} / {v.limite_via} km/h</span>
-            <small>{v.via}</small>
-          </button>
+            <button
+              type="button"
+              className="veiculo-item-selecionar"
+              onClick={() => onSelecionarVeiculo(v.veiculo_id)}
+            >
+              <strong>{v.veiculo_id}</strong>
+              <span>{formatarVelocidade(v.velocidade)} / {v.limite_via} km/h</span>
+              <small>{v.via}</small>
+            </button>
+            <button
+              type="button"
+              className="veiculo-item-remover"
+              onClick={() => handleRemocao(v.veiculo_id)}
+              disabled={remocaoEmAndamento === v.veiculo_id}
+              aria-label={`Remover ${v.veiculo_id}`}
+            >
+              {remocaoEmAndamento === v.veiculo_id ? '...' : 'Remover'}
+            </button>
+          </div>
         ))}
       </div>
 

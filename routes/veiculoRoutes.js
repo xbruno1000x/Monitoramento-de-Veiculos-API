@@ -81,6 +81,37 @@ router.post('/veiculos/cadastro', autenticar, (req, res) => {
 });
 
 /**
+ * DELETE /api/veiculos/:id
+ * Remove veiculo da frota do usuario autenticado.
+ */
+router.delete('/veiculos/:id', autenticar, (req, res) => {
+    try {
+        const registro = veiculoStore.removerVeiculo(req.usuario.id, req.params.id);
+
+        if (!registro.removido) {
+            return res.status(404).json({
+                erro: 'Veiculo nao encontrado',
+                mensagem: 'O veiculo informado nao esta cadastrado na sua frota',
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        return res.json({
+            status: 'OK',
+            mensagem: 'Veiculo removido com sucesso',
+            veiculo: registro,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        return res.status(400).json({
+            erro: 'Nao foi possivel remover o veiculo',
+            mensagem: error.message,
+            timestamp: new Date().toISOString(),
+        });
+    }
+});
+
+/**
  * GET /api/veiculos
  * Retorna todos os veículos rastreados (usado pelo frontend)
  */

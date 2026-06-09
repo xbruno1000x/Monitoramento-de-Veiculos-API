@@ -67,6 +67,16 @@ const insertRoutePointStmt = db.prepare(`
     VALUES (?, ?, ?, ?, ?)
 `);
 
+const deleteRoutePointsStmt = db.prepare(`
+    DELETE FROM vehicle_route_points
+    WHERE veiculo_id = ?
+`);
+
+const deleteVehicleStateStmt = db.prepare(`
+    DELETE FROM vehicle_state
+    WHERE veiculo_id = ?
+`);
+
 const pruneRoutePointsStmt = db.prepare(`
     DELETE FROM vehicle_route_points
     WHERE veiculo_id = ?
@@ -82,6 +92,11 @@ const pruneRoutePointsStmt = db.prepare(`
 const insertVehicleStmt = db.prepare(`
     INSERT INTO vehicles (veiculo_id, owner_id, created_at)
     VALUES (?, ?, ?)
+`);
+
+const deleteVehicleStmt = db.prepare(`
+    DELETE FROM vehicles
+    WHERE veiculo_id = ?
 `);
 
 const findVehicleByIdStmt = db.prepare('SELECT veiculo_id, owner_id, created_at FROM vehicles WHERE veiculo_id = ?');
@@ -217,6 +232,36 @@ class VeiculoStore {
             owner_id: ownerId,
             created_at: createdAt,
             ja_existia: false,
+        };
+    }
+
+    removerVeiculo(ownerId, veiculoId) {
+        const veiculoNormalizado = String(veiculoId || '').trim().toUpperCase();
+
+        if (!veiculoNormalizado) {
+            throw new Error('Veiculo invalido');
+        }
+
+        const existente = findVehicleByIdStmt.get(veiculoNormalizado);
+        if (!existente) {
+            return {
+                veiculo_id: veiculoNormalizado,
+                removido: false,
+            };
+        }
+
+        if (existente.owner_id !== ownerId) {
+            throw new Error('Acesso negado para este veiculo');
+        }
+
+        deleteRoutePointsStmt.run(veiculoNormalizado);
+        deleteVehicleStateStmt.run(veiculoNormalizado);
+        deleteVehicleStmt.run(veiculoNormalizado);
+        this.veiculos.delete(veiculoNormalizado);
+
+        return {
+            veiculo_id: veiculoNormalizado,
+            removido: true,
         };
     }
 

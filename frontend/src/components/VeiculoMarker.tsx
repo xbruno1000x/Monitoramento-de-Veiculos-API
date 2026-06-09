@@ -3,6 +3,7 @@ import L from 'leaflet'
 import type { Veiculo } from '../types'
 import { useEffect, useRef } from 'react'
 import type { Marker as LeafletMarker } from 'leaflet'
+import { formatarVelocidade } from '../utils/formatters'
 
 const BASE_ICON_HEADING_DEG = Number(import.meta.env.VITE_VEHICLE_ICON_OFFSET_DEG ?? 0)
 const MOVIMENTO_DURACAO_MS = 1300
@@ -148,7 +149,7 @@ export default function VeiculoMarker({ veiculo, selecionado }: Props) {
           <table style={{ fontSize: 13, width: '100%' }}>
             <tbody>
               <tr><td><b>Via</b></td><td>{via}</td></tr>
-              <tr><td><b>Velocidade</b></td><td>{velocidade} km/h</td></tr>
+              <tr><td><b>Velocidade</b></td><td>{formatarVelocidade(velocidade)}</td></tr>
               <tr><td><b>Limite</b></td><td>{limite_via} km/h</td></tr>
               <tr>
                 <td><b>Status</b></td>
