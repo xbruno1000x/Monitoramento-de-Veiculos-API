@@ -27,8 +27,8 @@ const getRoutePointsStmt = db.prepare(`
     SELECT lat, lon, timestamp
     FROM vehicle_route_points
     WHERE veiculo_id = ?
-    ORDER BY id DESC
-    LIMIT ?
+      AND timestamp >= ?
+    ORDER BY timestamp ASC, id ASC
 `);
 
 const upsertStateStmt = db.prepare(`
@@ -80,14 +80,23 @@ const deleteVehicleStateStmt = db.prepare(`
 const pruneRoutePointsStmt = db.prepare(`
     DELETE FROM vehicle_route_points
     WHERE veiculo_id = ?
-      AND id NOT IN (
-        SELECT id
-        FROM vehicle_route_points
-        WHERE veiculo_id = ?
-        ORDER BY id DESC
-        LIMIT ?
-      )
+      AND timestamp < ?
 `);
+
+const ROTA_ULTIMAS_24H_MS = 24 * 60 * 60 * 1000;
+
+function obterCorteUltimas24h() {
+    const corteMs = Date.now() - ROTA_ULTIMAS_24H_MS;
+    return {
+        corteMs,
+        corteIso: new Date(corteMs).toISOString(),
+    };
+}
+
+function pontoDentroDoCorte24h(timestamp, corteMs) {
+    const valor = Date.parse(timestamp);
+    return !Number.isNaN(valor) && valor >= corteMs;
+}
 
 const insertVehicleStmt = db.prepare(`
     INSERT INTO vehicles (veiculo_id, owner_id, created_at)
@@ -107,18 +116,18 @@ class VeiculoStore {
     constructor() {
         // Map<veiculo_id, { ...dadosVeiculo, ...dadosVia, updatedAt }>
         this.veiculos = new Map();
-        this.MAX_TRAJETO_PONTOS = 120;
 
         this.loadFromDatabase();
     }
 
     loadFromDatabase() {
+        const corteUltimas24h = obterCorteUltimas24h();
         const states = getStatesStmt.all();
 
         for (const row of states) {
-            const trajeto = getRoutePointsStmt
-                .all(row.veiculo_id, this.MAX_TRAJETO_PONTOS)
-                .reverse();
+            pruneRoutePointsStmt.run(row.veiculo_id, corteUltimas24h.corteIso);
+
+            const trajeto = getRoutePointsStmt.all(row.veiculo_id, corteUltimas24h.corteIso);
 
             this.veiculos.set(row.veiculo_id, {
                 lat: row.lat,
@@ -154,6 +163,7 @@ class VeiculoStore {
      */
     upsert(veiculoId, dados) {
         const agoraIso = new Date().toISOString();
+        const corteUltimas24h = obterCorteUltimas24h();
         const atual = this.veiculos.get(veiculoId);
         const trajetoAtual = Array.isArray(atual?.trajeto) ? atual.trajeto : [];
         const novoPonto = {
@@ -163,7 +173,8 @@ class VeiculoStore {
         };
         const ultimoPonto = trajetoAtual[trajetoAtual.length - 1];
         const appendRoutePoint = this.shouldAppendToRoute(ultimoPonto, novoPonto);
-        const trajeto = appendRoutePoint ? [...trajetoAtual, novoPonto].slice(-this.MAX_TRAJETO_PONTOS) : trajetoAtual;
+        const trajetoBase = appendRoutePoint ? [...trajetoAtual, novoPonto] : trajetoAtual;
+        const trajeto = trajetoBase.filter((ponto) => pontoDentroDoCorte24h(ponto.timestamp, corteUltimas24h.corteMs));
 
         if (dados.ownerId) {
             db.prepare('INSERT OR IGNORE INTO vehicles (veiculo_id, owner_id, created_at) VALUES (?, ?, ?)')
@@ -195,7 +206,7 @@ class VeiculoStore {
 
         if (appendRoutePoint) {
             insertRoutePointStmt.run(veiculoId, novoPonto.lat, novoPonto.lon, novoPonto.timestamp, agoraIso);
-            pruneRoutePointsStmt.run(veiculoId, veiculoId, this.MAX_TRAJETO_PONTOS);
+            pruneRoutePointsStmt.run(veiculoId, corteUltimas24h.corteIso);
         }
     }
 

@@ -67,6 +67,7 @@ db.exec(`
 
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_route_points_veiculo ON vehicle_route_points(veiculo_id, id);
+    CREATE INDEX IF NOT EXISTS idx_route_points_veiculo_timestamp ON vehicle_route_points(veiculo_id, timestamp);
 `);
 
 const defaultUsers = [
